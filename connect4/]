@@ -1,0 +1,274 @@
+#include "connect.h"
+#include <iostream>
+#include <glib.h>
+
+using namespace std;
+Homewindow::Homewindow(): box(Gtk::ORIENTATION_VERTICAL)
+{
+  set_title("Connect Four Start");
+  set_size_request(500,600);
+  pvp.add_label("Player vs Player");
+  pvp.signal_pressed().connect(sigc::mem_fun(*this,&Homewindow::opengame));
+  pvp.remove();
+  pvp.add_pixlabel("pvp.jpg", "");
+  sort.pack_start(pvp);
+  computer.remove();
+  computer.add_pixlabel("computer.jpg", "");
+  computer.signal_pressed().connect(sigc::mem_fun(*this,&Homewindow::opengame));
+  sort.pack_start(computer);
+  close.remove();
+  close.add_pixlabel("exit.jpg", "");
+  close.signal_pressed().connect(sigc::mem_fun(*this,&Homewindow::exit_game));
+  sort.pack_start(close);
+  sort.show_all();
+  add(sort);
+
+}
+Homewindow::~Homewindow(){}
+
+void Homewindow::exit_game()
+{
+  hide();
+  exit(0);
+}
+
+void Homewindow::opengame()
+{
+  string ent_name1, ent_name2;
+  nameWindow w1;
+  Gtk::Main::run(w1);
+  Player player1(w1.ent_red_in);
+  Player player2(w1.ent_black_in);
+  connectFour w2(player1,player2);
+  Gtk::Main::run(w2);
+
+}
+connectFour::connectFour(Player player1, Player player2)
+: box(Gtk::ORIENTATION_VERTICAL),
+  //Added player info elements
+  all_content(Gtk::ORIENTATION_HORIZONTAL),
+  top_content(Gtk::ORIENTATION_VERTICAL),
+  left_content(Gtk::ORIENTATION_VERTICAL),
+  left_border(Gtk::ORIENTATION_VERTICAL),
+  mid_content(Gtk::ORIENTATION_VERTICAL),
+  right_content(Gtk::ORIENTATION_VERTICAL)
+{
+  GamePlayers.push_back(player1);
+  GamePlayers.push_back(player2);
+  set_title("Team 1337: Connect Four");
+  set_size_request(850, 825);
+  //Added player info elements
+  mid_content.set_size_request(750,825);
+  left_content.set_size_request(150,825);
+  left_border.set_size_request(150,825);
+  right_border.set_size_request(150,825);
+  left_border.override_background_color(Gdk::RGBA("red"),Gtk::STATE_FLAG_NORMAL);
+  left_content.override_background_color(Gdk::RGBA("white"),Gtk::STATE_FLAG_NORMAL);
+  right_border.override_background_color(Gdk::RGBA("black"),Gtk::STATE_FLAG_NORMAL);
+  right_content.override_background_color(Gdk::RGBA("white"),Gtk::STATE_FLAG_NORMAL);
+  top_border.override_background_color(Gdk::RGBA("red"),Gtk::STATE_FLAG_NORMAL);
+  top_content.override_background_color(Gdk::RGBA("white"),Gtk::STATE_FLAG_NORMAL);
+  right_content.set_size_request(150,825);
+  top_border.set_size_request(750,75);
+  top_content.set_size_request(750,75);
+  top_content.set_border_width(10);
+  left_content.set_border_width(10);
+  right_content.set_border_width(10);
+
+  player1_name.set_size_request(100,100);
+  player2_name.set_size_request(100,100);
+  player1_name.set_text(GamePlayers[0].get_name());
+  player2_name.set_text(GamePlayers[1].get_name());
+  player_turn.set_text(GamePlayers[0].get_name()+"'s turn");
+  turn_label.set_text("Turn: "+PlayTurn);
+
+
+
+  for(int i = 0; i< 6; i++)
+  {
+    vector<buttonRowCol> temp;
+    for(int j= 0; j< 6;j++)
+    {
+      buttonRowCol b(i,j);
+      temp.push_back(b);
+    }
+    allButtons.push_back(temp);
+  }
+
+  for(int i =0; i < allButtons.size(); i++)
+  {
+    for(int j = 0; j< allButtons[i].size();j++)
+    {
+      // grid.attach(allButtons[i].at(j),i,j,10,10);
+    // allButtons[i][j].getButton()->set_size_request(100,100);
+
+      grid.attach(*(allButtons[i][j].getButton()),(i*125)+150,j*125,125,125);
+    }
+  }
+  // intiate the first row on the bottom
+  for(int c =0; c <allButtons[5].size(); c++)
+  {
+    allButtons[c][5].getButton()->set_sensitive(true);
+    allButtons[c][5].getButton()->set_label("CHOOSE ME");
+    allButtons[c][5].getButton()->signal_clicked().connect( sigc::bind<buttonRowCol>( sigc::mem_fun(*this, &connectFour::placedChecker),allButtons[c][5] ));
+
+  }
+  grid.show_all();
+
+  all_content.pack_start(left_border);
+  all_content.pack_start(mid_content);
+  all_content.pack_start(right_border);
+  left_border.pack_start(left_content);
+  right_border.pack_start(right_content);
+  top_border.pack_start(top_content);
+  mid_content.pack_start(top_border);
+  mid_content.pack_start(grid);
+  left_content.pack_start(player1_name);
+  top_content.pack_start(player_turn);
+  top_content.pack_start(turn_label);
+  right_content.pack_start(player2_name);
+  add(all_content);
+
+  show_all_children();
+  this->isRedTurn = true;
+
+
+}
+connectFour::~connectFour()
+{}
+  // connectFour starts from bottom to top
+  // Everytime a spot is filled, the one above has to become available to place next checkered.
+  // also not sure why rows and col indexs are inverted
+  // NOTE: getRow_num shows the COLUMN AND VICE VERSA
+  // NOTE: getCol_num shows the ROW number I don't know why it is that way
+  // Since I am changing button status I can't use a copy.
+  // I need the original
+void connectFour::placedChecker(buttonRowCol &button) {
+  // does not need to do anything if the row for that column is filled thus 0
+  if (button.getCol_num() != 0) {
+    // if button has not been revealed then work should be done to
+    // reveal button by checking sensitive
+    if (!allButtons[button.getRow_num()][button.getCol_num() - 1]
+             .getButton()
+             ->get_sensitive()) {
+      cout << "COL NUMBER: " << button.getRow_num() << " PRESSSED" << endl;
+      cout << "ROW NUMBER: " << button.getCol_num() << " PRESSSED" << endl;
+      if (button.getCol_num() != 0) {
+        allButtons[button.getRow_num()][button.getCol_num() - 1]
+            .getButton()
+            ->set_sensitive(
+                true); // make button above the one pressed available
+        allButtons[button.getRow_num()][button.getCol_num() - 1]
+            .getButton()
+            ->set_label("CHOOSE ME");
+        // attach function call for click
+        allButtons[button.getRow_num()][button.getCol_num() - 1]
+            .getButton()
+            ->signal_clicked()
+            .connect(sigc::bind<buttonRowCol>(
+                sigc::mem_fun(*this, &connectFour::placedChecker),
+                allButtons[button.getRow_num()][button.getCol_num() - 1]));
+      }
+    }
+  }
+  if( ! button.getIsSpotFilled())
+  {
+    if (this->isRedTurn) {
+      button.getButton()->remove();
+      button.getButton()->add_pixlabel("red.png", "", Gtk::ALIGN_CENTER, Gtk::ALIGN_CENTER);
+      this->isRedTurn = false;
+      connectFour::borderChange(isRedTurn);
+      button.setIsSpotFilled();
+      // NOTE: NOT WORKING record spot*************
+      spots[button.getCol_num()][button.getRow_num()] = RED;
+      checkCol(isRedTurn,5,0);
+      //**********************************
+    } else {
+      button.getButton()->remove();
+      button.getButton()->add_pixlabel("black.png", "", Gtk::ALIGN_CENTER, Gtk::ALIGN_CENTER);
+      this->isRedTurn = true;
+      connectFour::borderChange(isRedTurn);
+      // record spot
+      spots[button.getCol_num()][button.getRow_num()] = BLACK ;
+      PlayTurn++;
+      button.setIsSpotFilled();
+    }
+  }
+}
+
+  void connectFour::checkCol(bool colorTurn, int row, int col){
+    int val  =1;
+    int colSize =sizeof(spots)/ sizeof(spots[0]);
+    int rowSize = sizeof(spots[0])/ sizeof(int);
+    for(int i =0; i<4; i++)
+    {
+        val = spots[row-i][col] && val;
+
+    }
+    if(val ==1)
+    {
+      cout << "RED IS WINNER" << endl;
+    }
+  }
+  void connectFour::change() {
+    // button3.signal_clicked().connect(sigc::mem_fun(*this,&Button_window::on_button_2));
+
+
+  }
+  void connectFour::this_is_new() {}
+  void connectFour::borderChange(bool isRedTurn) {
+    if(isRedTurn) {
+      top_border.override_background_color(Gdk::RGBA("Red"),Gtk::STATE_FLAG_NORMAL);
+      player_turn.set_text(GamePlayers[0].get_name()+"'s Turn");
+    }
+    else if(!isRedTurn) {
+      top_border.override_background_color(Gdk::RGBA("Black"),Gtk::STATE_FLAG_NORMAL);
+      player_turn.set_text(GamePlayers[1].get_name()+"'s Turn");
+    }
+  }
+  void connectFour::GetNames() {
+    input_name_text.set_text("Enter Player Names");
+    NameDialog.set_size_request(100,100);
+    NameDialog.get_vbox()->pack_start(input_name_text);
+    NameDialog.show_all();
+    NameDialog.run();
+  }
+  void connectFour::GetPlayers(Player first, Player second) {
+    GamePlayers.push_back(first);
+    GamePlayers.push_back(second);
+  }
+  Player::Player(string in_string) {
+    name = in_string;
+  }
+  string Player::get_name() {
+    return name;
+  }
+  nameWindow::nameWindow() :
+  NameBox(Gtk::ORIENTATION_VERTICAL)
+  {
+
+  set_size_request(200,200);
+  ent_name_pls.set_text("Please Enter Player Names");
+  ent_red.set_max_length(16);
+  ent_red.set_text("Player 1");
+  ent_red.set_overwrite_mode(true);
+  ent_red.set_size_request(200,25);
+  ent_black.set_max_length(16);
+  ent_black.set_text("Player 2");
+  ent_black.set_overwrite_mode(true);
+  send_ent.set_label("Submit");
+
+  NameBox.pack_start(ent_name_pls);
+  NameBox.pack_start(ent_red);
+  NameBox.pack_start(ent_black);
+  NameBox.pack_start(send_ent);
+  send_ent.signal_clicked().connect(sigc::mem_fun(*this,&nameWindow::submitNames));
+  add(NameBox);
+  show_all_children();
+  }
+  nameWindow::~nameWindow() {}
+  void nameWindow::submitNames() {
+  ent_red_in = ent_red.get_text();
+  ent_black_in = ent_black.get_text();
+  hide();
+  }
